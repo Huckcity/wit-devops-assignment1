@@ -14,6 +14,7 @@ import boto3
 # https://stackoverflow.com/questions/40001892/reading-named-command-arguments
 # https://docs.python.org/2/howto/argparse.html#introducing-optional-arguments
 
+# Setting up optional arguments with fallbacks
 parser = argparse.ArgumentParser()
 parser.add_argument('--key', help='Keypair name',
                     required=False, default='ubuntu_ag')
@@ -21,6 +22,7 @@ parser.add_argument('--tag', help='Tag name', required=False,
                     default='Demo Instance From Script')
 parser.add_argument('--sec', help='Security group name',
                     required=False, default='launch-wizard-1')
+
 
 IMAGEID = 'ami-033b95fb8079dc481'
 MINCOUNT = 1
@@ -30,6 +32,7 @@ TAG_NAME = parser.parse_args().tag
 KEYNAME = parser.parse_args().key
 SECURITY_GROUP = parser.parse_args().sec
 
+# Tag to be used for tagging instances
 TAG_SPECS = [
     {
         'ResourceType': 'instance',
@@ -42,6 +45,7 @@ TAG_SPECS = [
     }
 ]
 
+# User data to be passed to the instance for execution on initialization
 USERDATA = """
 	#!/bin/bash
     yum update -y
@@ -77,6 +81,7 @@ print('-' * 80)
 # ---- Create EC2 Instance with the above specs ---- #
 # -------------------------------------------------- #
 
+# Setting up the client/resource
 try:
     ec2client = boto3.client('ec2')
     ec2resource = boto3.resource('ec2')
@@ -89,6 +94,7 @@ except Exception as e:
 
 security_groups = ec2client.describe_security_groups()
 
+# Use the provided (or default) security group name to check if it exists
 if SECURITY_GROUP not in [sg['GroupName'] for sg in security_groups['SecurityGroups']]:
     try:
 
@@ -148,10 +154,11 @@ try:
         UserData=USERDATA
     )
 
+    # create_instances returns a list of instances, grab the first one and assign it to the instance variable
     instance = instances[0]
 
     # Ref: https://stackoverflow.com/questions/34728477/retrieving-public-dns-of-ec2-instance-with-boto3
-    # Need to wait for instance to be created to get the public dns
+    # Need to wait for instance to be running to get the public dns
 
     print('Waiting for status to be updated to RUNNING...')
 
@@ -185,6 +192,7 @@ except Exception as e:
     print('Failed to create bucket, please review manually after script is complete: %s' % e)
     sys.exit(1)
 
+# Public policy for the bucket to allow access from the internet
 public_policy = {
     "Version": "2012-10-17",
     "Statement": [
@@ -198,6 +206,7 @@ public_policy = {
     ],
 }
 
+# Jsonified policy
 json_policy = json.dumps(public_policy)
 
 s3.put_bucket_policy(Bucket=BUCKET_NAME, Policy=json_policy)
@@ -208,11 +217,10 @@ website_payload = {
     }
 }
 
-
 bucket_website = s3.put_bucket_website(
     Bucket=BUCKET_NAME, WebsiteConfiguration=website_payload)
 
-# Create index.html file with image linked
+# Create index.html content with image linked
 
 S3_CONTENT = """
 <html>
@@ -224,6 +232,7 @@ S3_CONTENT = """
 </html>
 """ % WIT_IMAGE_FILE
 
+# Create the index.html file in the bucket
 try:
     s3.put_object(Body=S3_CONTENT, Bucket=BUCKET_NAME,
                   ContentType='text/html', Key='index.html')
@@ -260,10 +269,10 @@ webbrowser.open(ec2_site)
 webbrowser.open(s3_site)
 sleep(2)
 
+
 # Upload monitoring script to EC2 instance with scp command
 
 MONITORING_SCRIPT = 'monitor.sh'
-
 
 # Ref: https://askubuntu.com/questions/123072/ssh-automatically-accept-keys
 # Automatically accept the SSH key
@@ -341,7 +350,7 @@ try:
         DBInstanceClass='db.t2.micro',
         Engine='mysql',
         MasterUsername='root',
-        MasterUserPassword='password',
+        MasterUserPassword='password',  # Hard coded for demonstration purposes
         DBName='ag_db',
         MultiAZ=False,
         AllocatedStorage=5,
