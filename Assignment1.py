@@ -5,6 +5,7 @@ import subprocess
 import sys
 import argparse
 from time import sleep
+from datetime import datetime
 import requests
 import webbrowser
 import json
@@ -88,6 +89,28 @@ try:
 except Exception as e:
     print("Failed to initialize boto3 client and resource: ", e)
     sys.exit(1)
+
+# Check if the keypair exists in AWS and locally, if not create it
+try:
+    keypairs = ec2client.describe_key_pairs()
+    keypairs_list = keypairs['KeyPairs']
+    keypair_exists = False
+    for keypair in keypairs_list:
+        if(keypair['KeyName'] == KEYNAME):
+            keypair_exists = True
+            break
+    if(not keypair_exists):
+        print('Keypair {} does not exist, creating...'.format(KEYNAME))
+        keypair = ec2client.create_key_pair(KeyName=KEYNAME)
+        keypair_file = open(KEYNAME + '.pem', 'w')
+        keypair_file.write(keypair['KeyMaterial'])
+        keypair_file.close()
+        os.chmod(KEYNAME + '.pem', 0o400)
+        print('Keypair {} created successfully'.format(KEYNAME))
+    else:
+        print('Keypair {} already exists'.format(KEYNAME))
+except Exception as e:
+    print("Failed to create keypair: ", e)
 
 
 # Check if security group exists, and create if not
@@ -184,7 +207,7 @@ print('\nCreating S3 bucket for static website...\n')
 s3 = boto3.client('s3')
 
 WIT_IMAGE_FILE = 'assign1.jpg'
-BUCKET_NAME = 'static-website-ag'
+BUCKET_NAME = 'static-website-ag-%s' % datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
 
 try:
     s3.create_bucket(Bucket=BUCKET_NAME)
@@ -340,28 +363,28 @@ except Exception as e:
 # ---- Install and configure a database ---- #
 # ------------------------------------------ #
 
-print('\nCreating RDS instance...\n')
+# print('\nCreating RDS instance...\n')
 
-try:
-    rds = boto3.client('rds')
+# try:
+#     rds = boto3.client('rds')
 
-    response = rds.create_db_instance(
-        DBInstanceIdentifier='ag-db',
-        DBInstanceClass='db.t2.micro',
-        Engine='mysql',
-        MasterUsername='root',
-        MasterUserPassword='password',  # Hard coded for demonstration purposes
-        DBName='ag_db',
-        MultiAZ=False,
-        AllocatedStorage=5,
-        BackupRetentionPeriod=0,
-        StorageType='gp2',
-        PubliclyAccessible=True,
-    )
+#     response = rds.create_db_instance(
+#         DBInstanceIdentifier='ag-db',
+#         DBInstanceClass='db.t2.micro',
+#         Engine='mysql',
+#         MasterUsername='root',
+#         MasterUserPassword='password',  # Hard coded for demonstration purposes
+#         DBName='ag_db',
+#         MultiAZ=False,
+#         AllocatedStorage=5,
+#         BackupRetentionPeriod=0,
+#         StorageType='gp2',
+#         PubliclyAccessible=True,
+#     )
 
-    print('RDS instance created successfully')
-except Exception as e:
-    print('Failed to create RDS instance: %s' % e)
+#     print('RDS instance created successfully')
+# except Exception as e:
+#     print('Failed to create RDS instance: %s' % e)
 
 
 # ------------------------------------------ #
